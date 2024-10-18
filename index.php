@@ -21,16 +21,12 @@
 
     <!-- Add New Blog Post Button -->
     <div class="text-end">
-        <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#blogModal">Add New Post</button>
+        <button class="btn btn-primary mb-3" data-bs-toggle data-bs-targetAdd New Post</button>
     </div>
 
 		
 		<form id="blogForm">
-			<div class="modal-header">
-					<h5 class="modal-title" id="blogModalLabel">Add/Edit Blog Post</h5>
-					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-			</div>
-			<div class="modal-body">
+			<div class="">
 					<div class="mb-3">
 							<label for="title" class="form-label">Title</label>
 							<input type="text" class="form-control" id="title" name="title" required>
@@ -55,7 +51,7 @@
 							<input type="file" class="form-control" id="image" name="image">
 					</div>
 			</div>
-			<div class="modal-footer">
+			<div class="">
 					<button type="submit" class="btn btn-primary">Save</button>
 			</div>
 	</form>
