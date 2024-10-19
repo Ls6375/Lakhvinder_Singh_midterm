@@ -1,3 +1,4 @@
+<!-- Lakhvinder Singh 8959531 -->
 <?php
 require('./dbinit.php');
 
@@ -96,8 +97,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id'])) {
 	$postId = intval($_GET['id']);
 	$conn->query("DELETE FROM blog_posts WHERE PostID = $postId");
-	$_GET = [];
 	$msg = "Blog post deleted successfully";
+	header("Location: index.php");
 }
 
 // Fetch all blog posts
@@ -147,6 +148,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'edit' && isset($_GET['id'])) {
 <body>
 	<div class="container mt-4">
 		<h1 class="text-center">Blog Management</h1>
+		<p class="text-center">Lakhvinder Singh 8959531 </p>
 		<?php
 		if (!empty($msg)) {
 			echo <<<HTML
