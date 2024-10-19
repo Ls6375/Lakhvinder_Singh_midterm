@@ -1,51 +1,92 @@
 <?php
 require('./dbinit.php');
 
+// Function to sanitize input data
+function sanitizeInput($data, $conn)
+{
+	return mysqli_real_escape_string($conn, htmlspecialchars(trim($data)));
+}
+
+$errors = []; // Array to hold error messages
+$msg = ''; // To store success message
+
 // Handle form submission (Create/Edit)
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-	$title = $_POST['title'];
-	$content = $_POST['content'];
-	$author = $_POST['author'];
-	$visibility = $_POST['visibility'];
-	$imagePath = '';
+	// Validate required fields
+	if (empty($_POST['title'])) {
+		$errors['title'] = "Title is required.";
+	}
+	if (empty($_POST['content'])) {
+		$errors['content'] = "Content is required.";
+	}
+	if (empty($_POST['author'])) {
+		$errors['author'] = "Author is required.";
+	}
 
-	// Handle image upload if provided
-	if (isset($_FILES['image']) && $_FILES['image']['error'] == 0) {
-		$imageDir = 'images/';
-		$imageName = basename($_FILES['image']['name']);
-		$imagePath = $imageDir . $imageName;
+	// Check if this is a new post (i.e., no PostID)
+	$isCreating = !isset($_POST['PostID']) || empty($_POST['PostID']);
 
-		// Move uploaded file to the server directory
-		if (!move_uploaded_file($_FILES['image']['tmp_name'], $imagePath)) {
-			die("Failed to upload image.");
+	// If creating a new post, image is required
+	if ($isCreating) {
+		if (!isset($_FILES['image']) || $_FILES['image']['error'] != 0) {
+			$errors['image'] = "Image is required when creating a new blog post.";
 		}
 	}
 
-	// Create or Update logic
-	if (isset($_POST['PostID']) && !empty($_POST['PostID'])) {
-		// Update existing post
-		$postID = $_POST['PostID'];
-		$sql = "UPDATE blog_posts SET Title='$title', Content='$content', Author='$author', Visibility='$visibility', Image='$imagePath' WHERE PostID=$postID";
-	} else {
-		// Insert new post
-		$sql = "INSERT INTO blog_posts (Title, Content, Author, Visibility, Image) VALUES ('$title', '$content', '$author', '$visibility', '$imagePath')";
-	}
+	// Sanitize inputs if there are no errors
+	if (empty($errors)) {
+		$title = sanitizeInput($_POST['title'], $conn);
+		$content = sanitizeInput($_POST['content'], $conn);
+		$author = sanitizeInput($_POST['author'], $conn);
+		$visibility = isset($_POST['visibility']) ? sanitizeInput($_POST['visibility'], $conn) : 'hidden'; // default to hidden if not set
+		$imagePath = '';
 
-	if ($conn->query($sql) === TRUE) {
-		echo "Blog post saved successfully!";
-	} else {
-		echo "Error: " . $conn->error;
-	}
-}
+		// Validate image upload if provided
+		if (isset($_FILES['image']) && $_FILES['image']['error'] == 0) {
+			$imageDir = 'images/';
+			$imageName = basename($_FILES['image']['name']);
+			$imagePath = $imageDir . $imageName;
 
-// Delete a post
-if (isset($_GET['delete'])) {
-	$postID = $_GET['delete'];
-	$sql = "DELETE FROM blog_posts WHERE PostID=$postID";
-	if ($conn->query($sql) === TRUE) {
-		echo "Blog post deleted successfully!";
-	} else {
-		echo "Error deleting post: " . $conn->error;
+			// Check file type (only allow JPEG, PNG, GIF)
+			$allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif'];
+			$imageType = mime_content_type($_FILES['image']['tmp_name']);
+
+			if (!in_array($imageType, $allowedMimeTypes)) {
+				$errors['image'] = "Only JPEG, PNG, and GIF image formats are allowed.";
+			}
+
+			// Check file size (limit to 2MB)
+			if ($_FILES['image']['size'] > 2 * 1024 * 1024) {
+				$errors['image'] = "Image size should not exceed 2MB.";
+			}
+
+			// Move uploaded file to the server directory
+			if (empty($errors['image']) && !move_uploaded_file($_FILES['image']['tmp_name'], $imagePath)) {
+				$errors['image'] = "Failed to upload image.";
+			}
+		}
+
+		// Proceed with inserting or updating the post if there are no errors
+		if (empty($errors)) {
+			if (!$isCreating) {
+				// Update existing post
+				$postID = intval($_POST['PostID']);
+				// Update the image only if a new one was uploaded
+				$sql = $imagePath
+					? "UPDATE blog_posts SET Title='$title', Content='$content', Author='$author', Visibility='$visibility', Image='$imagePath' WHERE PostID=$postID"
+					: "UPDATE blog_posts SET Title='$title', Content='$content', Author='$author', Visibility='$visibility' WHERE PostID=$postID";
+			} else {
+				// Insert new post
+				$sql = "INSERT INTO blog_posts (Title, Content, Author, Visibility, Image) VALUES ('$title', '$content', '$author', '$visibility', '$imagePath')";
+			}
+
+			if ($conn->query($sql) === TRUE) {
+				$msg = "Blog post saved successfully!";
+				$_POST = []; // rest form fields
+			} else {
+				echo "Error: " . $conn->error;
+			}
+		}
 	}
 }
 
@@ -53,6 +94,7 @@ if (isset($_GET['delete'])) {
 $posts = $conn->query("SELECT * FROM blog_posts");
 
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
@@ -79,6 +121,17 @@ $posts = $conn->query("SELECT * FROM blog_posts");
 <body>
 	<div class="container mt-4">
 		<h1 class="text-center">Blog Management</h1>
+		<?php
+		if (isset($msg)) {
+			echo <<<HTML
+        <div class="alert alert-primary" role="alert">
+            <h4 class="alert-heading"></h4>
+            <p>$msg</p>
+        </div>
+HTML;
+		}
+		?>
+
 
 		<!-- Blog Form -->
 		<form id="blogForm" method="POST" enctype="multipart/form-data">
@@ -87,28 +140,45 @@ $posts = $conn->query("SELECT * FROM blog_posts");
 			<div class="modal-body">
 				<div class="mb-3">
 					<label for="title" class="form-label">Title</label>
-					<input type="text" class="form-control" id="title" name="title" required>
+					<input type="text" class="form-control <?php echo isset($errors['title']) ? 'is-invalid' : ''; ?>" id="title" name="title" value="<?php echo isset($_POST['title']) ? htmlspecialchars($_POST['title']) : ''; ?>">
+					<div class="invalid-feedback">
+						<?php echo isset($errors['title']) ? $errors['title'] : ''; ?>
+					</div>
 				</div>
+
 				<div class="mb-3">
 					<label for="content" class="form-label">Content</label>
-					<textarea class="form-control" id="content" name="content" rows="4" required></textarea>
+					<textarea class="form-control <?php echo isset($errors['content']) ? 'is-invalid' : ''; ?>" id="content" name="content" rows="4"><?php echo isset($_POST['content']) ? htmlspecialchars($_POST['content']) : ''; ?></textarea>
+					<div class="invalid-feedback">
+						<?php echo isset($errors['content']) ? $errors['content'] : ''; ?>
+					</div>
 				</div>
+
 				<div class="mb-3">
 					<label for="author" class="form-label">Author</label>
-					<input type="text" class="form-control" id="author" name="author" required>
+					<input type="text" class="form-control <?php echo isset($errors['author']) ? 'is-invalid' : ''; ?>" id="author" name="author" value="<?php echo isset($_POST['author']) ? htmlspecialchars($_POST['author']) : ''; ?>">
+					<div class="invalid-feedback">
+						<?php echo isset($errors['author']) ? $errors['author'] : ''; ?>
+					</div>
 				</div>
+
 				<div class="mb-3">
 					<label for="visibility" class="form-label">Visibility</label>
 					<select class="form-control" id="visibility" name="visibility">
-						<option value="visible">Visible</option>
-						<option value="hidden">Hidden</option>
+						<option value="visible" <?php echo (isset($_POST['visibility']) && $_POST['visibility'] == 'visible') ? 'selected' : ''; ?>>Visible</option>
+						<option value="hidden" <?php echo (isset($_POST['visibility']) && $_POST['visibility'] == 'hidden') ? 'selected' : ''; ?>>Hidden</option>
 					</select>
 				</div>
+
 				<div class="mb-3">
 					<label for="image" class="form-label">Image</label>
-					<input type="file" class="form-control" id="image" name="image">
+					<input type="file" class="form-control <?php echo isset($errors['image']) ? 'is-invalid' : ''; ?>" id="image" name="image">
+					<div class="invalid-feedback">
+						<?php echo isset($errors['image']) ? $errors['image'] : ''; ?>
+					</div>
 				</div>
 			</div>
+
 			<button type="submit" class="btn btn-primary">Submit</button>
 		</form>
 
@@ -128,51 +198,16 @@ $posts = $conn->query("SELECT * FROM blog_posts");
 				</tr>
 			</thead>
 			<tbody>
-				<tr>
-					<td>1</td>
-					<td>Sample Blog Title</td>
-					<td>Sample Blog Content goes here...</td>
-					<td>Lakhvinder Singh</td>
-					<td>Visible</td>
-					<td><img src="path_to_image.jpg" width="50" height="50" alt="Sample Image"></td>
-					<td>
-						<button class="btn btn-warning btn-sm">Edit</button>
-						<button class="btn btn-danger btn-sm">Delete</button>
-					</td>
-				</tr>
+				<!-- Blog post data will be populated here -->
 			</tbody>
 		</table>
 	</div>
 
-	</div>
-
-	<!-- Initialize DataTable and CKEditor -->
+	<!-- Initialize DataTable -->
 	<script>
 		$(document).ready(function() {
 			$('#blogTable').DataTable();
-
-			// ClassicEditor
-			// 	.create(document.querySelector('#content'))
-			// 	.catch(error => {
-			// 		console.error(error);
-			// 	});
 		});
-
-		// Function to populate form for editing
-		function editPost(postID) {
-			// Fetch the blog post data and populate the form for editing
-			$.get('get_post.php', {
-				id: postID
-			}, function(data) {
-				const post = JSON.parse(data);
-				$('#PostID').val(post.PostID);
-				$('#title').val(post.Title);
-				$('#content').val(post.Content);
-				$('#author').val(post.Author);
-				$('#visibility').val(post.Visibility);
-				$('#image').val(''); // Clear image input, image can't be populated
-			});
-		}
 	</script>
 </body>
 
