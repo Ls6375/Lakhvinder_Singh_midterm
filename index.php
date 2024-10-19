@@ -8,6 +8,7 @@ function sanitizeInput($data, $conn)
 }
 
 $errors = []; // Array to hold error messages
+$msg = ""; // Message variable for success feedback
 
 // Handle form submission (Create/Edit)
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -80,8 +81,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 			}
 
 			if ($conn->query($sql) === TRUE) {
-				$msg = "Blog post saved successfully!";
-				$_POST = []; // rest form fields
+				$msg = $isCreating ? "Blog post created successfully!" : "Blog post updated successfully!";
+				$_POST = []; // reset form fields
+				$_GET = []; // reset form fields
 			} else {
 				echo "Error: " . $conn->error;
 			}
@@ -89,15 +91,36 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 	}
 }
 
+
+// Handle deletion
+if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id'])) {
+	$postId = intval($_GET['id']);
+	$conn->query("DELETE FROM blog_posts WHERE PostID = $postId");
+	$_GET = [];
+	$msg = "Blog post deleted successfully";
+}
+
 // Fetch all blog posts
 $posts = $conn->query("SELECT * FROM blog_posts");
 
+// Handle fetching a post for editing
+if (isset($_GET['action']) && $_GET['action'] == 'edit' && isset($_GET['id'])) {
+	$postId = intval($_GET['id']);
+	$result = $conn->query("SELECT * FROM blog_posts WHERE PostID = $postId");
+	if ($result->num_rows > 0) {
+		$post = $result->fetch_assoc();
+		$_POST['PostID'] = $post['PostID'];
+		$_POST['title'] = $post['Title'];
+		$_POST['content'] = $post['Content'];
+		$_POST['author'] = $post['Author'];
+		$_POST['visibility'] = $post['Visibility'];
+		// No need to set image path; it will be displayed in the table
+	}
+}
 ?>
-
 
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -112,16 +135,20 @@ $posts = $conn->query("SELECT * FROM blog_posts");
 	<script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
 	<script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
 
-	<!-- CKEditor 5 (Classic) -->
-	<script src="https://cdn.ckeditor.com/ckeditor5/39.0.0/classic/ckeditor.js"></script>
+	<!-- Initialize DataTable -->
+	<script>
+		$(document).ready(function() {
+			$('#blogTable').DataTable();
 
+		});
+	</script>
 </head>
 
 <body>
 	<div class="container mt-4">
 		<h1 class="text-center">Blog Management</h1>
 		<?php
-		if (isset($msg)) {
+		if (!empty($msg)) {
 			echo <<<HTML
         <div class="alert alert-primary" role="alert">
             <h4 class="alert-heading"></h4>
@@ -131,10 +158,9 @@ HTML;
 		}
 		?>
 
-
 		<!-- Blog Form -->
 		<form id="blogForm" method="POST" enctype="multipart/form-data">
-			<input type="hidden" id="PostID" name="PostID">
+			<input type="hidden" id="PostID" name="PostID" value="<?php echo isset($_POST['PostID']) ? $_POST['PostID'] : ''; ?>">
 
 			<div class="modal-body">
 				<div class="mb-3">
@@ -184,56 +210,60 @@ HTML;
 		<hr>
 
 		<!-- Blog Table -->
-		<table id="blogTable" class="table table-striped table-bordered">
-			<thead>
-				<tr>
-					<th>ID</th>
-					<th>Title</th>
-					<th>Content</th>
-					<th>Author</th>
-					<th>Visibility</th>
-					<th>Image</th>
-					<th>Actions</th>
-				</tr>
-			</thead>
-			<tbody>
-    <?php
-    if ($posts->num_rows > 0) {
-        while ($row = $posts->fetch_assoc()) {
-            echo "<tr>";
-            echo "<td>" . htmlspecialchars($row['PostID']) . "</td>";
-            echo "<td>" . htmlspecialchars($row['Title']) . "</td>";
-            echo "<td>" . htmlspecialchars($row['Content']) . "</td>";
-            echo "<td>" . htmlspecialchars($row['Author']) . "</td>";
-            echo "<td>" . htmlspecialchars($row['Visibility']) . "</td>";
-            echo "<td>";
-            if (!empty($row['Image'])) {
-                echo '<img src="' . htmlspecialchars($row['Image']) . '" alt="Image" style="max-width: 100px;">';
-            } else {
-                echo 'No image';
-            }
-            echo "</td>";
-            echo '<td>';
-            echo '<button class="btn btn-warning btn-sm editBtn" data-id="' . htmlspecialchars($row['PostID']) . '">Edit</button>';
-            echo '<button class="btn btn-danger btn-sm deleteBtn" data-id="' . htmlspecialchars($row['PostID']) . '">Delete</button>';
-            echo '</td>';
-            echo "</tr>";
-        }
-    } else {
-        echo "<tr><td colspan='7'>No blog posts found.</td></tr>";
-    }
-    ?>
-</tbody>
+		<div class="table-responsive">
+				<table id="blogTable" class="table table-striped table-bordered">
+						<thead>
+								<tr>
+										<th>ID</th>
+										<th>Title</th>
+										<th class="w-25 text-truncate">Content</th> <!-- Set width and enable truncation -->
+										<th>Author</th>
+										<th>Visibility</th>
+										<th>Image</th>
+										<th>Actions</th>
+								</tr>
+						</thead>
+						<tbody>
+								<?php
+								if ($posts->num_rows > 0) {
+										while ($row = $posts->fetch_assoc()) {
+												echo "<tr>";
+												echo "<td>" . htmlspecialchars($row['PostID']) . "</td>";
+												echo "<td>" . htmlspecialchars($row['Title']) . "</td>";
+												echo "<td class='text-truncate' style='max-width: 200px;'>" . htmlspecialchars($row['Content']) . "</td>"; 
+												echo "<td>" . htmlspecialchars($row['Author']) . "</td>";
+												echo "<td>" . htmlspecialchars($row['Visibility']) . "</td>";
+												echo "<td>";
+												if (!empty($row['Image'])) {
+														echo '<img src="' . htmlspecialchars($row['Image']) . '" alt="Image" style="max-width: 100px;">';
+												} else {
+														echo 'No image';
+												}
+												echo "</td>";
+												echo '<td>';
+												echo '<a href="?action=edit&id=' . htmlspecialchars($row['PostID']) . '" class="btn btn-warning btn-sm mx-2">Edit</a>';
+												echo '<a href="?action=delete&id=' . htmlspecialchars($row['PostID']) . '" class="btn btn-danger btn-sm" onclick="return confirm(\'Are you sure you want to delete this post?\')">Delete</a>';
+												echo '</td>';
+												echo "</tr>";
+										}
+								} else {
+										echo "<tr><td colspan='7'>No blog posts found.</td></tr>";
+								}
+								?>
+						</tbody>
+				</table>
+		</div>
 
-		</table>
 	</div>
 
 	<!-- Initialize DataTable -->
 	<script>
 		$(document).ready(function() {
 			$('#blogTable').DataTable();
+
 		});
 	</script>
+
 </body>
 
 </html>
