@@ -8,7 +8,6 @@ function sanitizeInput($data, $conn)
 }
 
 $errors = []; // Array to hold error messages
-$msg = ''; // To store success message
 
 // Handle form submission (Create/Edit)
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -198,8 +197,34 @@ HTML;
 				</tr>
 			</thead>
 			<tbody>
-				<!-- Blog post data will be populated here -->
-			</tbody>
+    <?php
+    if ($posts->num_rows > 0) {
+        while ($row = $posts->fetch_assoc()) {
+            echo "<tr>";
+            echo "<td>" . htmlspecialchars($row['PostID']) . "</td>";
+            echo "<td>" . htmlspecialchars($row['Title']) . "</td>";
+            echo "<td>" . htmlspecialchars($row['Content']) . "</td>";
+            echo "<td>" . htmlspecialchars($row['Author']) . "</td>";
+            echo "<td>" . htmlspecialchars($row['Visibility']) . "</td>";
+            echo "<td>";
+            if (!empty($row['Image'])) {
+                echo '<img src="' . htmlspecialchars($row['Image']) . '" alt="Image" style="max-width: 100px;">';
+            } else {
+                echo 'No image';
+            }
+            echo "</td>";
+            echo '<td>';
+            echo '<button class="btn btn-warning btn-sm editBtn" data-id="' . htmlspecialchars($row['PostID']) . '">Edit</button>';
+            echo '<button class="btn btn-danger btn-sm deleteBtn" data-id="' . htmlspecialchars($row['PostID']) . '">Delete</button>';
+            echo '</td>';
+            echo "</tr>";
+        }
+    } else {
+        echo "<tr><td colspan='7'>No blog posts found.</td></tr>";
+    }
+    ?>
+</tbody>
+
 		</table>
 	</div>
 
