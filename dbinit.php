@@ -2,7 +2,7 @@
 $servername = "localhost";
 $username = "root";
 $password = "";
-$dbname = "lakhvinder_blog";
+$dbname = "lakhvinder_blog_midterm";
 
 // Create connection
 $conn = new mysqli($servername, $username, $password);
@@ -23,6 +23,7 @@ $conn = new mysqli($servername, $username, $password, $dbname);
 $table_sql = "CREATE TABLE IF NOT EXISTS blog_posts (
     PostID INT AUTO_INCREMENT PRIMARY KEY,
     Title VARCHAR(255) NOT NULL,
+    Image VARCHAR(255) NOT NULL,
     Content TEXT NOT NULL,
     Author VARCHAR(100) NOT NULL DEFAULT 'Lakhvinder Singh',
     CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

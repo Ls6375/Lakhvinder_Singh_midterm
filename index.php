@@ -1,3 +1,59 @@
+<?php
+require('./dbinit.php');
+
+// Handle form submission (Create/Edit)
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+	$title = $_POST['title'];
+	$content = $_POST['content'];
+	$author = $_POST['author'];
+	$visibility = $_POST['visibility'];
+	$imagePath = '';
+
+	// Handle image upload if provided
+	if (isset($_FILES['image']) && $_FILES['image']['error'] == 0) {
+		$imageDir = 'images/';
+		$imageName = basename($_FILES['image']['name']);
+		$imagePath = $imageDir . $imageName;
+
+		// Move uploaded file to the server directory
+		if (!move_uploaded_file($_FILES['image']['tmp_name'], $imagePath)) {
+			die("Failed to upload image.");
+		}
+	}
+
+	// Create or Update logic
+	if (isset($_POST['PostID']) && !empty($_POST['PostID'])) {
+		// Update existing post
+		$postID = $_POST['PostID'];
+		$sql = "UPDATE blog_posts SET Title='$title', Content='$content', Author='$author', Visibility='$visibility', Image='$imagePath' WHERE PostID=$postID";
+	} else {
+		// Insert new post
+		$sql = "INSERT INTO blog_posts (Title, Content, Author, Visibility, Image) VALUES ('$title', '$content', '$author', '$visibility', '$imagePath')";
+	}
+
+	if ($conn->query($sql) === TRUE) {
+		echo "Blog post saved successfully!";
+	} else {
+		echo "Error: " . $conn->error;
+	}
+}
+
+// Delete a post
+if (isset($_GET['delete'])) {
+	$postID = $_GET['delete'];
+	$sql = "DELETE FROM blog_posts WHERE PostID=$postID";
+	if ($conn->query($sql) === TRUE) {
+		echo "Blog post deleted successfully!";
+	} else {
+		echo "Error deleting post: " . $conn->error;
+	}
+}
+
+// Fetch all blog posts
+$posts = $conn->query("SELECT * FROM blog_posts");
+
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -25,7 +81,8 @@
 		<h1 class="text-center">Blog Management</h1>
 
 		<!-- Blog Form -->
-		<form id="blogForm">
+		<form id="blogForm" method="POST" enctype="multipart/form-data">
+			<input type="hidden" id="PostID" name="PostID">
 
 			<div class="modal-body">
 				<div class="mb-3">
@@ -71,7 +128,6 @@
 				</tr>
 			</thead>
 			<tbody>
-				<!-- Sample Row (Dynamic rows will be generated via PHP) -->
 				<tr>
 					<td>1</td>
 					<td>Sample Blog Title</td>
@@ -88,30 +144,36 @@
 		</table>
 	</div>
 
-	<!-- Modal for Adding/Editing Blog Posts -->
-	<div class="modal fade" id="blogModal" tabindex="-1" aria-labelledby="blogModalLabel" aria-hidden="true">
-		<div class="modal-dialog">
-			<div class="modal-content">
-
-			</div>
-		</div>
 	</div>
 
-	<!-- Bootstrap JS Bundle -->
-	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-
-	<!-- DataTable and CKEditor -->
+	<!-- Initialize DataTable and CKEditor -->
 	<script>
 		$(document).ready(function() {
-			$('#blogTable').DataTable();  
-			ClassicEditor
-				.create(document.querySelector('#content'))
-				.catch(error => {
-					console.error(error);
-				});
-		});
-	</script>
+			$('#blogTable').DataTable();
 
+			// ClassicEditor
+			// 	.create(document.querySelector('#content'))
+			// 	.catch(error => {
+			// 		console.error(error);
+			// 	});
+		});
+
+		// Function to populate form for editing
+		function editPost(postID) {
+			// Fetch the blog post data and populate the form for editing
+			$.get('get_post.php', {
+				id: postID
+			}, function(data) {
+				const post = JSON.parse(data);
+				$('#PostID').val(post.PostID);
+				$('#title').val(post.Title);
+				$('#content').val(post.Content);
+				$('#author').val(post.Author);
+				$('#visibility').val(post.Visibility);
+				$('#image').val(''); // Clear image input, image can't be populated
+			});
+		}
+	</script>
 </body>
 
 </html>
